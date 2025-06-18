@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Facebook Data Analytics</title>
+    <link rel="stylesheet" href="analytics.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <div class="header-content">
+                <div class="logo">
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+                        <path d="M2 17L12 22L22 17" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+                        <path d="M2 12L12 17L22 12" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+                    </svg>
+                    <div>
+                        <h1>Facebook Data Analytics</h1>
+                        <p>Анализ собранных данных</p>
+                    </div>
+                </div>
+                <div class="header-actions">
+                    <button class="btn btn-outline" id="refreshData">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M3 12A9 9 0 0 1 12 3A9 9 0 0 1 21 12" stroke="currentColor" stroke-width="2"/>
+                            <path d="M21 12A9 9 0 0 1 12 21A9 9 0 0 1 3 12" stroke="currentColor" stroke-width="2"/>
+                            <path d="M12 3V12L16.5 7.5" stroke="currentColor" stroke-width="2"/>
+                        </svg>
+                        Обновить
+                    </button>
+                    <button class="btn btn-primary" id="exportAll">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M21 15V19A2 2 0 0 1 19 21H5A2 2 0 0 1 3 19V15" stroke="currentColor" stroke-width="2"/>
+                            <polyline points="7,10 12,15 17,10" stroke="currentColor" stroke-width="2"/>
+                            <line x1="12" y1="15" x2="12" y2="3" stroke="currentColor" stroke-width="2"/>
+                        </svg>
+                        Экспорт
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <main class="main">
+            <!-- Статистические карточки -->
+            <section class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-icon posts">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M14 2H6A2 2 0 0 0 4 4V20A2 2 0 0 0 6 22H18A2 2 0 0 0 20 20V8L14 2Z" stroke="currentColor" stroke-width="2"/>
+                            <polyline points="14,2 14,8 20,8" stroke="currentColor" stroke-width="2"/>
+                        </svg>
+                    </div>
+                    <div class="stat-content">
+                        <h3>Посты</h3>
+                        <div class="stat-number" id="totalPosts">0</div>
+                        <div class="stat-change" id="postsChange">+0 за сегодня</div>
+                    </div>
+                </div>
+
+                <div class="stat-card">
+                    <div class="stat-icon comments">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M21 15A2 2 0 0 1 19 17H7L4 20V6A2 2 0 0 1 6 4H19A2 2 0 0 1 21 6V15Z" stroke="currentColor" stroke-width="2"/>
+                        </svg>
+                    </div>
+                    <div class="stat-content">
+                        <h3>Комментарии</h3>
+                        <div class="stat-number" id="totalComments">0</div>
+                        <div class="stat-change" id="commentsChange">+0 за сегодня</div>
+                    </div>
+                </div>
+
+                <div class="stat-card">
+                    <div class="stat-icon profiles">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M20 21V19A4 4 0 0 0 16 15H8A4 4 0 0 0 4 19V21" stroke="currentColor" stroke-width="2"/>
+                            <circle cx="12" cy="7" r="4" stroke="currentColor" stroke-width="2"/>
+                        </svg>
+                    </div>
+                    <div class="stat-content">
+                        <h3>Профили</h3>
+                        <div class="stat-number" id="totalProfiles">0</div>
+                        <div class="stat-change" id="profilesChange">+0 за сегодня</div>
+                    </div>
+                </div>
+
+                <div class="stat-card">
+                    <div class="stat-icon engagement">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M20.84 4.61A5.5 5.5 0 0 0 16 2A5.5 5.5 0 0 0 12 4.61A5.5 5.5 0 0 0 8 2A5.5 5.5 0 0 0 3.16 4.61C1.5 6.27 1.5 8.73 3.16 10.39L12 19.23L20.84 10.39C22.5 8.73 22.5 6.27 20.84 4.61Z" stroke="currentColor" stroke-width="2"/>
+                        </svg>
+                    </div>
+                    <div class="stat-content">
+                        <h3>Вовлеченность</h3>
+                        <div class="stat-number" id="totalEngagement">0</div>
+                        <div class="stat-change" id="engagementRate">0% средний</div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Графики и аналитика -->
+            <section class="charts-section">
+                <div class="chart-container">
+                    <div class="chart-header">
+                        <h3>Активность по времени</h3>
+                        <div class="chart-controls">
+                            <select id="timeRange">
+                                <option value="7">7 дней</option>
+                                <option value="30" selected>30 дней</option>
+                                <option value="90">90 дней</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="chart-wrapper">
+                        <canvas id="timeChart"></canvas>
+                    </div>
+                </div>
+
+                <div class="chart-container">
+                    <div class="chart-header">
+                        <h3>Топ авторов</h3>
+                        <div class="chart-controls">
+                            <select id="authorMetric">
+                                <option value="posts">По постам</option>
+                                <option value="reactions">По реакциям</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="chart-wrapper">
+                        <canvas id="authorsChart"></canvas>
+                    </div>
+                </div>
+
+                <div class="chart-container">
+                    <div class="chart-header">
+                        <h3>Распределение вовлеченности</h3>
+                    </div>
+                    <div class="chart-wrapper">
+                        <canvas id="engagementChart"></canvas>
+                    </div>
+                </div>
+
+                <div class="chart-container">
+                    <div class="chart-header">
+                        <h3>Статистика комментариев</h3>
+                    </div>
+                    <div class="chart-wrapper">
+                        <canvas id="commentsChart"></canvas>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Таблица данных -->
+            <section class="data-section">
+                <div class="section-header">
+                    <h3>Последние данные</h3>
+                    <div class="section-controls">
+                        <div class="search-box">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <circle cx="11" cy="11" r="8" stroke="currentColor" stroke-width="2"/>
+                                <path d="M21 21L16.65 16.65" stroke="currentColor" stroke-width="2"/>
+                            </svg>
+                            <input type="text" id="searchInput" placeholder="Поиск...">
+                        </div>
+                        <select id="dataFilter">
+                            <option value="all">Все данные</option>
+                            <option value="posts">Только посты</option>
+                            <option value="comments">Только комментарии</option>
+                            <option value="profiles">Только профили</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="data-table-container">
+                    <table class="data-table" id="dataTable">
+                        <thead>
+                            <tr>
+                                <th>Тип</th>
+                                <th>Содержание</th>
+                                <th>Автор</th>
+                                <th>Время</th>
+                                <th>Активность</th>
+                                <th>Действия</th>
+                            </tr>
+                        </thead>
+                        <tbody id="dataTableBody">
+                            <!-- Данные будут загружены динамически -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="pagination" id="pagination">
+                    <button class="btn btn-outline" id="prevPage" disabled>Назад</button>
+                    <span class="page-info" id="pageInfo">Страница 1 из 1</span>
+                    <button class="btn btn-outline" id="nextPage" disabled>Вперед</button>
+                </div>
+            </section>
+        </main>
+
+        <!-- Модальное окно экспорта -->
+        <div class="modal" id="exportModal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>Экспорт данных</h3>
+                    <button class="modal-close" id="closeModal">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <line x1="18" y1="6" x2="6" y2="18" stroke="currentColor" stroke-width="2"/>
+                            <line x1="6" y1="6" x2="18" y2="18" stroke="currentColor" stroke-width="2"/>
+                        </svg>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <div class="export-options">
+                        <div class="option-group">
+                            <h4>Формат экспорта</h4>
+                            <label class="radio-label">
+                                <input type="radio" name="exportFormat" value="json" checked>
+                                <span class="radio-mark"></span>
+                                JSON (полные данные)
+                            </label>
+                            <label class="radio-label">
+                                <input type="radio" name="exportFormat" value="csv">
+                                <span class="radio-mark"></span>
+                                CSV (таблица)
+                            </label>
+                        </div>
+                        
+                        <div class="option-group">
+                            <h4>Тип данных</h4>
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="exportPosts" checked>
+                                <span class="checkmark"></span>
+                                Посты
+                            </label>
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="exportComments" checked>
+                                <span class="checkmark"></span>
+                                Комментарии
+                            </label>
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="exportProfiles" checked>
+                                <span class="checkmark"></span>
+                                Профили
+                            </label>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-outline" id="cancelExport">Отмена</button>
+                    <button class="btn btn-primary" id="confirmExport">Экспортировать</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="../src/dataProcessor.js"></script>
+    <script src="analytics.js"></script>
+</body>
+</html>
+
