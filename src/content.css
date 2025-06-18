@@ -1,1 +1,296 @@
 
+/* Content Script CSS для Facebook Scraper */
+
+/* Подсветка обрабатываемых элементов */
+.fb-scraper-highlight {
+    outline: 2px solid #4f46e5 !important;
+    background: rgba(79, 70, 229, 0.1) !important;
+    animation: fb-scraper-pulse 2s infinite;
+    border-radius: 4px !important;
+}
+
+@keyframes fb-scraper-pulse {
+    0%, 100% { 
+        opacity: 1; 
+        transform: scale(1);
+    }
+    50% { 
+        opacity: 0.8; 
+        transform: scale(1.02);
+    }
+}
+
+/* Индикатор активности */
+.fb-scraper-indicator {
+    position: fixed !important;
+    top: 20px !important;
+    right: 20px !important;
+    background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%) !important;
+    color: white !important;
+    padding: 12px 16px !important;
+    border-radius: 8px !important;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+    font-size: 14px !important;
+    font-weight: 600 !important;
+    z-index: 10000 !important;
+    box-shadow: 0 8px 25px rgba(79, 70, 229, 0.3) !important;
+    display: none !important;
+    backdrop-filter: blur(10px) !important;
+    border: 1px solid rgba(255, 255, 255, 0.2) !important;
+    animation: fb-scraper-slideIn 0.3s ease !important;
+}
+
+@keyframes fb-scraper-slideIn {
+    from {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+/* Счетчик обработанных элементов */
+.fb-scraper-counter {
+    position: fixed !important;
+    top: 80px !important;
+    right: 20px !important;
+    background: rgba(0, 0, 0, 0.8) !important;
+    color: white !important;
+    padding: 8px 12px !important;
+    border-radius: 6px !important;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+    font-size: 12px !important;
+    font-weight: 500 !important;
+    z-index: 9999 !important;
+    backdrop-filter: blur(10px) !important;
+    display: none !important;
+}
+
+/* Прогресс бар */
+.fb-scraper-progress {
+    position: fixed !important;
+    top: 140px !important;
+    right: 20px !important;
+    width: 200px !important;
+    background: rgba(255, 255, 255, 0.9) !important;
+    border-radius: 8px !important;
+    padding: 12px !important;
+    z-index: 9998 !important;
+    backdrop-filter: blur(10px) !important;
+    border: 1px solid rgba(0, 0, 0, 0.1) !important;
+    display: none !important;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1) !important;
+}
+
+.fb-scraper-progress-bar {
+    width: 100% !important;
+    height: 6px !important;
+    background: #e5e7eb !important;
+    border-radius: 3px !important;
+    overflow: hidden !important;
+    margin-bottom: 8px !important;
+}
+
+.fb-scraper-progress-fill {
+    height: 100% !important;
+    background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%) !important;
+    border-radius: 3px !important;
+    width: 0% !important;
+    transition: width 0.3s ease !important;
+}
+
+.fb-scraper-progress-text {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+    font-size: 11px !important;
+    color: #374151 !important;
+    text-align: center !important;
+    font-weight: 500 !important;
+}
+
+/* Маркеры для разных типов контента */
+.fb-scraper-post-marker {
+    position: absolute !important;
+    top: -8px !important;
+    left: -8px !important;
+    background: #10b981 !important;
+    color: white !important;
+    width: 20px !important;
+    height: 20px !important;
+    border-radius: 50% !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    font-size: 10px !important;
+    font-weight: bold !important;
+    z-index: 1000 !important;
+}
+
+.fb-scraper-comment-marker {
+    position: absolute !important;
+    top: -6px !important;
+    left: -6px !important;
+    background: #f59e0b !important;
+    color: white !important;
+    width: 16px !important;
+    height: 16px !important;
+    border-radius: 50% !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    font-size: 8px !important;
+    font-weight: bold !important;
+    z-index: 1000 !important;
+}
+
+.fb-scraper-profile-marker {
+    position: absolute !important;
+    top: -6px !important;
+    right: -6px !important;
+    background: #8b5cf6 !important;
+    color: white !important;
+    width: 16px !important;
+    height: 16px !important;
+    border-radius: 50% !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    font-size: 8px !important;
+    font-weight: bold !important;
+    z-index: 1000 !important;
+}
+
+/* Уведомления */
+.fb-scraper-notification {
+    position: fixed !important;
+    top: 20px !important;
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+    background: rgba(0, 0, 0, 0.9) !important;
+    color: white !important;
+    padding: 12px 20px !important;
+    border-radius: 8px !important;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+    font-size: 14px !important;
+    font-weight: 500 !important;
+    z-index: 10001 !important;
+    backdrop-filter: blur(10px) !important;
+    animation: fb-scraper-fadeInOut 3s ease !important;
+}
+
+@keyframes fb-scraper-fadeInOut {
+    0%, 100% { opacity: 0; transform: translateX(-50%) translateY(-20px); }
+    10%, 90% { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+
+/* Статистика в реальном времени */
+.fb-scraper-stats {
+    position: fixed !important;
+    bottom: 20px !important;
+    right: 20px !important;
+    background: rgba(255, 255, 255, 0.95) !important;
+    border-radius: 12px !important;
+    padding: 16px !important;
+    z-index: 9997 !important;
+    backdrop-filter: blur(10px) !important;
+    border: 1px solid rgba(0, 0, 0, 0.1) !important;
+    display: none !important;
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1) !important;
+    min-width: 180px !important;
+}
+
+.fb-scraper-stats-title {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+    font-size: 12px !important;
+    font-weight: 600 !important;
+    color: #374151 !important;
+    margin-bottom: 8px !important;
+    text-align: center !important;
+}
+
+.fb-scraper-stats-item {
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+    margin-bottom: 4px !important;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+    font-size: 11px !important;
+}
+
+.fb-scraper-stats-label {
+    color: #6b7280 !important;
+    font-weight: 500 !important;
+}
+
+.fb-scraper-stats-value {
+    color: #4f46e5 !important;
+    font-weight: 600 !important;
+    background: rgba(79, 70, 229, 0.1) !important;
+    padding: 2px 6px !important;
+    border-radius: 4px !important;
+}
+
+/* Анимации для плавности */
+.fb-scraper-element-enter {
+    animation: fb-scraper-elementEnter 0.3s ease !important;
+}
+
+@keyframes fb-scraper-elementEnter {
+    from {
+        opacity: 0;
+        transform: scale(0.95);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+/* Скрытие элементов при необходимости */
+.fb-scraper-hidden {
+    display: none !important;
+}
+
+/* Адаптивность для мобильных устройств */
+@media (max-width: 768px) {
+    .fb-scraper-indicator,
+    .fb-scraper-progress,
+    .fb-scraper-stats {
+        right: 10px !important;
+    }
+    
+    .fb-scraper-progress {
+        width: 160px !important;
+    }
+    
+    .fb-scraper-stats {
+        min-width: 140px !important;
+    }
+}
+
+/* Темная тема */
+@media (prefers-color-scheme: dark) {
+    .fb-scraper-progress {
+        background: rgba(0, 0, 0, 0.9) !important;
+        border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    }
+    
+    .fb-scraper-progress-text {
+        color: #d1d5db !important;
+    }
+    
+    .fb-scraper-stats {
+        background: rgba(0, 0, 0, 0.9) !important;
+        border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    }
+    
+    .fb-scraper-stats-title {
+        color: #d1d5db !important;
+    }
+    
+    .fb-scraper-stats-label {
+        color: #9ca3af !important;
+    }
+}
+
