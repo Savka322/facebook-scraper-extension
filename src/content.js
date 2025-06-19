@@ -1,15 +1,16 @@
-// Content Script для извлечения данных с Facebook - Обновленная версия
+// Content Script для извлечения данных с Facebook
 class FacebookScraper {
     constructor() {
         this.isActive = false;
         this.settings = {};
         this.scrapedData = {
-            posts: []
+            posts: [],
+            comments: [],
+            profiles: []
         };
         this.processedElements = new Set();
         this.scrollCount = 0;
         this.maxScrollAttempts = 50;
-        this.currentPostIndex = 0;
         
         this.initializeSelectors();
         this.bindMessageListener();
@@ -17,55 +18,128 @@ class FacebookScraper {
     }
 
     initializeSelectors() {
-        // Обновленные селекторы для Facebook
+        // Селекторы для различных элементов Facebook (могут изменяться)
         this.selectors = {
-            // Основные контейнеры постов
+            // Посты (более общие и специфичные селекторы)
             posts: [
-                'div[role="article"]',
-                'div[data-pagelet^="FeedUnit_"]'
+                // Селекторы для постов в ленте новостей и группах
+                'div[role="feed"] > div[data-pagelet^="FeedUnit_"]',
+                'div[role="article"]'
             ],
             
-            // Ссылки для открытия полного поста (как на скриншоте)
-            postLinks: [
+            // Текст поста (разные варианты, включая скрытый текст)
+            postText: [
+                'div[data-ad-preview="message"]',
+                'div[data-testid="post_message"]',
+                'div[dir="auto"]',
+                'span[dir="auto"]'
+            ],
+            
+            // Автор поста
+            postAuthor: [
+                'strong > span > a[role="link"]',
+                'h2 strong > span > a[role="link"]',
+                'a[role="link"][tabindex="0"][href*="facebook.com/"]'
+            ],
+            
+            // Время публикации
+            postTime: [
+                'span.x4k7w5x.x1h91t0o.x1h9r5lt.x1jfb8zj.x87ps6o.x14atkfc.x1d52u69.x1s65kcs.x1lq5wgf.xgqcy7u.x30kzoy.x9jhf4c.x1lliihq > a[role="link"]',
+                'a[role="link"][tabindex="0"][href*="/posts/"]',
+                'a[role="link"][tabindex="0"][href*="/permalink/"]'
+            ],
+            
+            // Реакции
+            reactions: [
+                'span.xrbpyxo.x6ikm8r.x10wlt62.xlyipyv.x1exxlbk[role="button"] span.x1e558r4',
+                'div[aria-label*="reactions"]'
+            ],
+            
+            // Комментарии (количество)
+            commentsCount: [
+                'div[role="article"] div[data-testid="UFI2CommentsCount/root"]',
+                'span[data-testid="UFI2CommentsCount/root"]',
+                'span.x193iq5w.xeuugli.x13faqbe.x1vvkbs.x1xmvt09.x1lliihq.x1s928wv.xhkezso.x1gmr53x.x1cpjm7i.x1fgarty.x1943h6x.xudqn12.x3x7a5m.x6prxxf.xvq8zen.xo1l8bm.xzsf02u'
+            ],
+            
+            // Репосты (количество)
+            sharesCount: [
+                'div[role="article"] div[data-testid="UFI2SharesCount/root"]',
+                'span[data-testid="UFI2SharesCount/root"]',
+                'span.x193iq5w.xeuugli.x13faqbe.x1vvkbs.x1xmvt09.x1lliihq.x1s928wv.xhkezso.x1gmr53x.x1cpjm7i.x1fgarty.x1943h6x.xudqn12.x3x7a5m.x6prxxf.xvq8zen.xo1l8bm.xzsf02u'
+            ],
+            
+            // Контейнер комментариев
+            commentsContainer: [
+                'div.x78zum5.xdt5ytf.x1n2onr6.x1ja2u2z',
+                'div[role="feed"][aria-label="Comments"]'
+            ],
+
+            // Отдельный комментарий
+            comments: [
+                'div.x78zum5.xdt5ytf.x1n2onr6.x1ja2u2z > div[role="article"]',
+                'div[role="article"][data-testid="UFI2Comment/root"]'
+            ],
+            
+            // Текст комментария
+            commentText: [
+                'div.xdj266r.x11i5rnm.xat24cr.x1mh8g0r.x1vvkbs span.x193iq5w.xeuugli.x13faqbe.x1vvkbs.x1xmvt09.x1lliihq.x1s928wv.xhkezso.x1gmr53x.x1cpjm7i.x1fgarty.x1943h6x.xudqn12.x3x7a5m.x6prxxf.xvq8zen.xo1l8bm.xzsf02u.x1yc453h[dir="auto"]',
+                'div[data-testid="comment-content"] span[dir="auto"]'
+            ],
+            
+            // Автор комментария
+            commentAuthor: [
+                'span.xt0psk2.xt0b8zv.x1jx94hy.x12nagc.x1mh8g0r.x85a59c.x47corl.xurb0ha.x1s85apg.x1tlxs6b.x1g8q02w.x1s65kcs.x1q0q8m5.x1qjc9v5.x78zum5.x1q0g3np.x1a2a7pz[role="link"]',
+                'a[data-testid="comment-author-link"]'
+            ],
+
+            // Ссылка на пост (для получения ID)
+            postLink: [
                 'a[href*="/posts/"]',
-                'a[href*="/permalink/"]',
-                'a[role="link"][href*="/groups/"][href*="/posts/"]',
-                'span[dir="auto"] a[role="link"]'
+                'a[href*="/permalink/"]'
             ],
-            
-            // Селекторы для полного поста (после открытия)
-            fullPost: {
-                container: 'div[role="main"]',
-                content: [
-                    'div[data-ad-preview="message"]',
-                    'div[data-testid="post_message"]',
-                    'div[dir="auto"]'
-                ],
-                author: {
-                    name: 'h2 strong a[role="link"]',
-                    link: 'h2 strong a[role="link"]'
-                },
-                timestamp: 'a[role="link"][href*="/posts/"] span',
-                reactions: 'span[aria-label*="reactions"]',
-                commentsCount: 'span[data-testid="UFI2CommentsCount/root"]'
-            },
-            
-            // Комментарии и ответы
-            comments: {
-                container: 'div[aria-label="Comments"]',
-                items: 'div[role="article"]',
-                content: 'div[dir="auto"]',
-                author: 'a[role="link"]',
-                timestamp: 'a[role="link"] span',
-                repliesButton: 'div[role="button"]:contains("replies")',
-                showMoreButton: 'div[role="button"]:contains("View more")',
-                replies: {
-                    container: 'div[data-testid="UFI2Comment/replies"]',
-                    items: 'div[role="article"]'
-                }
-            },
-            // Селектор для кнопки закрытия модального окна поста
-            closeButton: 'div[aria-label="Close"]'
+
+            // Кнопка "Показать ответы" или "View more replies"
+            viewRepliesButton: [
+                'div[role="button"][tabindex="0"][aria-label*="View"]',
+                'div[role="button"][tabindex="0"][aria-label*="replies"]',
+                'span.x193iq5w.xeuugli.x13faqbe.x1vvkbs.x1xmvt09.x1lliihq.x1s928wv.xhkezso.x1gmr53x.x1cpjm7i.x1fgarty.x1943h6x.xudqn12.x3x7a5m.x6prxxf.xvq8zen.xo1l8bm.xzsf02u[role="button"]'
+            ],
+
+            // Отдельный ответ на комментарий (аналогично комментарию)
+            replies: [
+                'div.x78zum5.xdt5ytf.x1n2onr6.x1ja2u2z > div[role="article"]',
+                'div[role="article"][data-testid="UFI2Comment/root"]'
+            ],
+
+            // Кнопка Comments для открытия полного поста
+            commentsButton: [
+                'div[role="button"][aria-label*="comment"]',
+                'div[role="button"][aria-label*="Comment"]',
+                'a[role="link"][href*="/posts/"]',
+                'a[role="link"][href*="/permalink/"]'
+            ],
+
+            // Модальное окно поста
+            postModal: [
+                'div[role="dialog"]',
+                'div[aria-modal="true"]'
+            ],
+
+            // Кнопка закрытия модального окна
+            closeButton: [
+                'div[aria-label="Close"]',
+                'div[aria-label="Закрыть"]',
+                'div[role="button"][aria-label*="Close"]',
+                'div[role="button"][aria-label*="Закрыть"]'
+            ],
+
+            // Кнопки для загрузки дополнительных комментариев
+            viewMoreCommentsButton: [
+                'div[role="button"][aria-label*="View more comments"]',
+                'div[role="button"][aria-label*="more comments"]',
+                'div[role="button"][aria-label*="View previous comments"]'
+            ]
         };
     }
 
@@ -79,23 +153,11 @@ class FacebookScraper {
         const style = document.createElement('style');
         style.textContent = `
             .scraper-highlight {
-                border: 2px solid #007bff !important;
-                box-shadow: 0 0 5px rgba(0, 123, 255, 0.5) !important;
+                border: 2px solid #007bff;
+                box-shadow: 0 0 5px rgba(0, 123, 255, 0.5);
             }
             .scraper-processed {
                 opacity: 0.7;
-            }
-            .scraper-progress {
-                position: fixed;
-                top: 10px;
-                right: 10px;
-                background: rgba(0, 0, 0, 0.8);
-                color: white;
-                padding: 10px;
-                border-radius: 5px;
-                z-index: 10000;
-                font-family: Arial, sans-serif;
-                font-size: 12px;
             }
         `;
         document.head.append(style);
@@ -106,39 +168,27 @@ class FacebookScraper {
             case 'startScraping':
                 this.isActive = true;
                 this.settings = message.settings;
-                this.scrapedData = { posts: [] };
+                this.scrapedData = {
+                    posts: [],
+                    comments: [],
+                    profiles: []
+                };
                 this.processedElements.clear();
                 this.scrollCount = 0;
-                this.currentPostIndex = 0;
-                this.showProgress('Начинаем сбор данных...');
                 this.startScrapingLoop();
                 sendResponse({ status: 'Scraping started' });
                 break;
             case 'stopScraping':
                 this.isActive = false;
-                this.hideProgress();
                 sendResponse({ status: 'Scraping stopped' });
                 break;
             case 'getScrapedData':
                 sendResponse({ data: this.scrapedData });
                 break;
-        }
-    }
-
-    showProgress(text) {
-        let progressDiv = document.querySelector('.scraper-progress');
-        if (!progressDiv) {
-            progressDiv = document.createElement('div');
-            progressDiv.className = 'scraper-progress';
-            document.body.appendChild(progressDiv);
-        }
-        progressDiv.textContent = text;
-    }
-
-    hideProgress() {
-        const progressDiv = document.querySelector('.scraper-progress');
-        if (progressDiv) {
-            progressDiv.remove();
+            case 'injectScript':
+                // Этот случай обрабатывается в background.js, но здесь для полноты
+                sendResponse({ status: 'Script already injected or injection attempted' });
+                break;
         }
     }
 
@@ -146,8 +196,6 @@ class FacebookScraper {
         if (!this.isActive) {
             return;
         }
-
-        this.showProgress(`Обработано постов: ${this.scrapedData.posts.length}`);
 
         const initialPostCount = this.scrapedData.posts.length;
         await this.scrapeCurrentPage();
@@ -157,16 +205,15 @@ class FacebookScraper {
         if (this.settings.maxPosts && newPostCount >= this.settings.maxPosts) {
             this.isActive = false;
             this.sendDataToBackground();
-            this.hideProgress();
             console.log('Scraping finished. Max posts reached. Data sent to extension.');
             return;
         }
 
-        // Проверяем, если не было найдено новых постов после прокрутки
+        // Проверяем, если не было найдено новых постов после прокрутки, и лимит постов не достигнут
+        // Это предотвращает бесконечную прокрутку, если больше нет контента
         if (this.scrollCount > 0 && newPostCount === initialPostCount) {
             this.isActive = false;
             this.sendDataToBackground();
-            this.hideProgress();
             console.log('Scraping finished. No new posts found after scroll. Data sent to extension.');
             return;
         }
@@ -181,244 +228,135 @@ class FacebookScraper {
         } else {
             this.isActive = false;
             this.sendDataToBackground();
-            this.hideProgress();
             console.log('Scraping finished. Max scroll attempts reached. Data sent to extension.');
         }
     }
 
     async scrapeCurrentPage() {
         const posts = document.querySelectorAll(this.selectors.posts.join(', '));
-        
         for (const postElement of posts) {
-            if (!this.processedElements.has(postElement) && this.isActive) {
+            if (!this.processedElements.has(postElement)) {
                 this.processedElements.add(postElement);
                 
-                // Ищем ссылку для открытия полного поста
-                const postLink = this.findPostLink(postElement);
-                if (postLink) {
-                    this.highlightElement(postElement);
-                    this.showProgress(`Обрабатываем пост ${this.currentPostIndex + 1}...`);
-                    
-                    const postData = await this.extractFullPostData(postLink, postElement);
+                // Новая логика: сначала нажимаем кнопку Comments
+                const commentsButton = await this.findCommentsButton(postElement);
+                if (commentsButton) {
+                    try {
+                        // Нажимаем кнопку Comments для открытия полного поста
+                        commentsButton.click();
+                        
+                        // Ждем загрузки полного поста
+                        await new Promise(resolve => setTimeout(resolve, 2000));
+                        
+                        // Теперь собираем данные из открытого поста
+                        const postData = await this.extractPostDataFromModal();
+                        if (postData) {
+                            this.scrapedData.posts.push(postData);
+                            this.highlightElement(postElement);
+                        }
+                        
+                        // Закрываем модальное окно поста
+                        await this.closePostModal();
+                        
+                    } catch (error) {
+                        console.log('Error processing post:', error);
+                        // Если что-то пошло не так, пробуем закрыть модальное окно
+                        await this.closePostModal();
+                    }
+                } else {
+                    // Если кнопка Comments не найдена, используем старый метод
+                    const postData = await this.extractPostData(postElement);
                     if (postData) {
                         this.scrapedData.posts.push(postData);
-                        this.currentPostIndex++;
-                        
-                        // Проверяем лимит постов
-                        if (this.settings.maxPosts && this.scrapedData.posts.length >= this.settings.maxPosts) {
-                            break;
-                        }
+                        this.highlightElement(postElement);
                     }
-                    
-                    // Небольшая пауза между постами
-                    await new Promise(resolve => setTimeout(resolve, 1000));
                 }
             }
         }
     }
 
-    findPostLink(postElement) {
-        for (const selector of this.selectors.postLinks) {
-            const link = postElement.querySelector(selector);
-            if (link && link.href && (link.href.includes('/posts/') || link.href.includes('/permalink/'))) {
-                return link;
+    async extractPostData(postElement) {
+        const post = {};
+
+        // Текст поста
+        post.text = await this.extractFullPostText(postElement);
+        // Автор поста
+        const authorLinkElement = postElement.querySelector(this.selectors.postAuthor.join(', '));
+        if (authorLinkElement) {
+            post.author = {
+                name: authorLinkElement.textContent.trim(),
+                profileLink: authorLinkElement.href
+            };
+        }
+
+        // Дата и время публикации
+        const timeElement = postElement.querySelector(this.selectors.postTime.join(', '));
+        if (timeElement) {
+            post.timestamp = timeElement.getAttribute('title') || timeElement.textContent.trim();
+        }
+
+        // Количество реакций
+        const reactionsElement = postElement.querySelector(this.selectors.reactions.join(', '));
+        if (reactionsElement) {
+            post.reactions = reactionsElement.textContent.trim();
+        }
+
+        // Количество комментариев
+        const commentsCountElement = postElement.querySelector(this.selectors.commentsCount.join(', '));
+        if (commentsCountElement) {
+            post.commentsCount = commentsCountElement.textContent.trim();
+        }
+
+        // Количество репостов
+        const sharesCountElement = postElement.querySelector(this.selectors.sharesCount.join(', '));
+        if (sharesCountElement) {
+            post.sharesCount = sharesCountElement.textContent.trim();
+        }
+
+        // Комментарии
+        post.comments = await this.extractComments(postElement);
+
+        // Ссылка на пост (для получения ID)
+        const postLinkElement = postElement.querySelector(this.selectors.postLink.join(', '));
+        if (postLinkElement) {
+            post.postLink = postLinkElement.href;
+            const postIdMatch = postLinkElement.href.match(/\/posts\/(\d+)|\/permalink\/(\d+)/);
+            if (postIdMatch) {
+                post.id = postIdMatch[1] || postIdMatch[2];
             }
         }
-        return null;
+
+        return post;
     }
 
-    async extractFullPostData(postLink, originalElement) {
-        try {
-            // Получаем URL поста
-            const postUrl = postLink.href;
-            const postId = this.extractPostId(postUrl);
-            
-            this.showProgress(`Открываем полный пост...`);
-            
-            // Кликаем по ссылке, чтобы открыть модальное окно
-            postLink.click();
-            
-            // Ждем загрузки модального окна
-            await new Promise(resolve => setTimeout(resolve, 3000));
-            
-            // Извлекаем данные с полной страницы поста (модального окна)
-            const postData = await this.extractPostDataFromFullPage(postId, postUrl);
-            
-            // Закрываем модальное окно
-            const closeButton = document.querySelector(this.selectors.closeButton);
-            if (closeButton) {
-                closeButton.click();
-                await new Promise(resolve => setTimeout(resolve, 1000)); // Небольшая пауза после закрытия
-            } else {
-                console.warn('Close button not found. Cannot close modal.');
-            }
-            
-            return postData;
-            
-        } catch (error) {
-            console.error('Error extracting full post data:', error);
-            // Fallback: извлекаем данные из оригинального элемента
-            return this.extractBasicPostData(originalElement, postLink.href);
-        }
-    }
-
-    async extractPostDataFromFullPage(postId, postUrl) {
-        const postData = {
-            post_id: postId,
-            author: {},
-            content: {},
-            metadata: {},
-            comments: []
-        };
-
-        // Извлекаем автора
-        const authorElement = document.querySelector(this.selectors.fullPost.author.name);
-        if (authorElement) {
-            postData.author = {
-                name: authorElement.textContent.trim(),
-                profile_url: authorElement.href,
-                full_name: authorElement.textContent.trim()
-            };
-        }
-
-        // Извлекаем контент поста
-        const contentElement = document.querySelector(this.selectors.fullPost.content.join(', '));
-        if (contentElement) {
-            postData.content = {
-                text: contentElement.textContent.trim()
-            };
-        }
-
-        // Извлекаем метаданные
-        const timestampElement = document.querySelector(this.selectors.fullPost.timestamp);
-        if (timestampElement) {
-            postData.metadata = {
-                created_at: timestampElement.getAttribute('title') || timestampElement.textContent.trim(),
-                post_url: postUrl
-            };
-        }
-
-        // Извлекаем комментарии
-        postData.comments = await this.extractAllComments();
-
-        return postData;
-    }
-
-    async extractAllComments() {
+    async extractComments(postElement) {
         const comments = [];
-        
-        // Сначала раскрываем все комментарии
-        await this.expandAllComments();
-        
-        const commentElements = document.querySelectorAll(this.selectors.comments.items);
-        
-        for (const commentElement of commentElements) {
-            const comment = await this.extractCommentData(commentElement);
-            if (comment) {
+        const commentsContainer = postElement.querySelector(this.selectors.commentsContainer.join(', '));
+        if (commentsContainer) {
+            const commentElements = commentsContainer.querySelectorAll(this.selectors.comments.join(', '));
+            for (const commentElement of commentElements) {
+                const comment = {};
+                comment.text = this.extractText(commentElement, this.selectors.commentText);
+                
+                const authorLinkElement = commentElement.querySelector(this.selectors.commentAuthor.join(', '));
+                if (authorLinkElement) {
+                    comment.author = {
+                        name: authorLinkElement.textContent.trim(),
+                        profileLink: authorLinkElement.href
+                    };
+                }
+
+                const timeElement = commentElement.querySelector(this.selectors.postTime.join(', ')); // Используем тот же селектор времени, что и для поста
+                if (timeElement) {
+                    comment.timestamp = timeElement.getAttribute('title') || timeElement.textContent.trim();
+                }
+
+                // TODO: Добавить логику для вложенных комментариев
+                comment.replies = await this.extractReplies(commentElement);
                 comments.push(comment);
             }
         }
-        
         return comments;
-    }
-
-    async expandAllComments() {
-        // Нажимаем на все кнопки "View more comments"
-        const showMoreButtons = document.querySelectorAll('div[role="button"]');
-        for (const button of showMoreButtons) {
-            if (button.textContent.includes('View more') || 
-                button.textContent.includes('comments') ||
-                button.textContent.includes('replies')) {
-                button.click();
-                await new Promise(resolve => setTimeout(resolve, 1000));
-            }
-        }
-    }
-
-    async extractCommentData(commentElement) {
-        const comment = {
-            comment_id: this.generateCommentId(),
-            content: {},
-            author: {},
-            metadata: {},
-            replies: []
-        };
-
-        // Извлекаем текст комментария
-        const contentElement = commentElement.querySelector(this.selectors.comments.content);
-        if (contentElement) {
-            comment.content.text = contentElement.textContent.trim();
-        }
-
-        // Извлекаем автора комментария
-        const authorElement = commentElement.querySelector(this.selectors.comments.author);
-        if (authorElement) {
-            comment.author = {
-                name: authorElement.textContent.trim(),
-                profile_url: authorElement.href,
-                full_name: authorElement.textContent.trim()
-            };
-        }
-
-        // Извлекаем время комментария
-        const timestampElement = commentElement.querySelector(this.selectors.comments.timestamp);
-        if (timestampElement) {
-            comment.metadata.created_at = timestampElement.getAttribute('title') || timestampElement.textContent.trim();
-        }
-
-        // Извлекаем ответы на комментарий
-        comment.replies = await this.extractCommentReplies(commentElement);
-
-        return comment;
-    }
-
-    async extractCommentReplies(commentElement) {
-        const replies = [];
-        
-        // Ищем контейнер с ответами
-        const repliesContainer = commentElement.querySelector(this.selectors.comments.replies.container);
-        if (repliesContainer) {
-            const replyElements = repliesContainer.querySelectorAll(this.selectors.comments.replies.items);
-            
-            for (const replyElement of replyElements) {
-                const reply = await this.extractCommentData(replyElement); // Рекурсивно
-                if (reply) {
-                    replies.push(reply);
-                }
-            }
-        }
-        
-        return replies;
-    }
-
-    extractBasicPostData(postElement, postUrl) {
-        // Fallback метод для извлечения базовых данных
-        const postData = {
-            post_id: this.extractPostId(postUrl),
-            author: {},
-            content: {},
-            metadata: {
-                post_url: postUrl
-            },
-            comments: []
-        };
-
-        // Пытаемся извлечь базовую информацию из элемента ленты
-        const textElement = postElement.querySelector('div[dir="auto"]');
-        if (textElement) {
-            postData.content.text = textElement.textContent.trim();
-        }
-
-        return postData;
-    }
-
-    extractPostId(url) {
-        const match = url.match(/\/posts\/(\d+)|\/permalink\/(\d+)/);
-        return match ? (match[1] || match[2]) : `post_${Date.now()}`;
-    }
-
-    generateCommentId() {
-        return `comment_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     }
 
     highlightElement(element) {
@@ -430,14 +368,216 @@ class FacebookScraper {
     }
 
     sendDataToBackground() {
-        // Используем DataProcessor для обработки данных перед отправкой
-        const processor = new DataProcessor();
-        const processedData = processor.processScrapedData(this.scrapedData);
-        chrome.runtime.sendMessage({ action: 'scrapedData', data: processedData });
+        chrome.runtime.sendMessage({ action: 'scrapedData', data: this.scrapedData });
+    }
+
+    async extractFullPostText(postElement) {
+        let fullText = this.extractText(postElement, this.selectors.postText);
+        const seeMoreButton = postElement.querySelector('div[role="button"][tabindex="0"][aria-label*="See more"]');
+        if (seeMoreButton) {
+            seeMoreButton.click();
+            await new Promise(resolve => setTimeout(resolve, 500)); // Wait for content to expand
+            fullText = this.extractText(postElement, this.selectors.postText);
+        }
+        return fullText;
+    }
+
+    extractText(element, selectors) {
+        for (const selector of selectors) {
+            const el = element.querySelector(selector);
+            if (el) {
+                return el.textContent.trim();
+            }
+        }
+        return '';
+    }
+
+    async findCommentsButton(postElement) {
+        // Поиск кнопки Comments
+        for (const selector of this.selectors.commentsButton) {
+            const button = postElement.querySelector(selector);
+            if (button) {
+                // Дополнительная проверка текста кнопки, если селектор слишком общий
+                if (button.textContent.toLowerCase().includes('comment') || button.getAttribute('aria-label')?.toLowerCase().includes('comment')) {
+                    return button;
+                }
+            }
+        }
+        return null;
+    }
+
+    async extractPostDataFromModal() {
+        // Селекторы для элементов внутри модального окна
+        const modal = document.querySelector(this.selectors.postModal.join(', '));
+        if (!modal) {
+            return null;
+        }
+
+        const post = {};
+
+        // Автор поста
+        const authorLinkElement = modal.querySelector(this.selectors.postAuthor.join(', '));
+        if (authorLinkElement) {
+            post.author = {
+                name: authorLinkElement.textContent.trim(),
+                profileLink: authorLinkElement.href
+            };
+        }
+
+        // Текст поста
+        post.text = await this.extractFullPostText(modal);
+
+        // Дата и время публикации
+        const timeElement = modal.querySelector(this.selectors.postTime.join(', '));
+        if (timeElement) {
+            post.timestamp = timeElement.getAttribute('title') || timeElement.textContent.trim();
+        }
+
+        // Количество реакций
+        const reactionsElement = modal.querySelector(this.selectors.reactions.join(', '));
+        if (reactionsElement) {
+            post.reactions = reactionsElement.textContent.trim();
+        }
+
+        // Количество комментариев
+        const commentsCountElement = modal.querySelector(this.selectors.commentsCount.join(', '));
+        if (commentsCountElement) {
+            post.commentsCount = commentsCountElement.textContent.trim();
+        }
+
+        // Количество репостов
+        const sharesCountElement = modal.querySelector(this.selectors.sharesCount.join(', '));
+        if (sharesCountElement) {
+            post.sharesCount = sharesCountElement.textContent.trim();
+        }
+
+        // Комментарии из модального окна
+        post.comments = await this.extractCommentsFromModal(modal);
+
+        // Ссылка на пост (для получения ID)
+        const postLinkElement = modal.querySelector(this.selectors.postLink.join(', '));
+        if (postLinkElement) {
+            post.postLink = postLinkElement.href;
+            const postIdMatch = postLinkElement.href.match(/\/posts\/(\d+)|\/permalink\/(\d+)/);
+            if (postIdMatch) {
+                post.id = postIdMatch[1] || postIdMatch[2];
+            }
+        }
+
+        return post;
+    }
+
+    async extractCommentsFromModal(modalElement) {
+        const comments = [];
+        await this.loadAllComments(modalElement); // Загружаем все комментарии перед извлечением
+
+        const commentsContainer = modalElement.querySelector(this.selectors.commentsContainer.join(', '));
+        if (commentsContainer) {
+            const commentElements = commentsContainer.querySelectorAll(this.selectors.comments.join(', '));
+            for (const commentElement of commentElements) {
+                const comment = {};
+                comment.text = this.extractText(commentElement, this.selectors.commentText);
+                
+                const authorLinkElement = commentElement.querySelector(this.selectors.commentAuthor.join(', '));
+                if (authorLinkElement) {
+                    comment.author = {
+                        name: authorLinkElement.textContent.trim(),
+                        profileLink: authorLinkElement.href
+                    };
+                }
+
+                const timeElement = commentElement.querySelector(this.selectors.postTime.join(', '));
+                if (timeElement) {
+                    comment.timestamp = timeElement.getAttribute('title') || timeElement.textContent.trim();
+                }
+
+                comment.replies = await this.extractReplies(commentElement);
+                comments.push(comment);
+            }
+        }
+        return comments;
+    }
+
+        async closePostModal() {
+        const closeButton = document.querySelector(this.selectors.closeButton.join(', '));
+        if (closeButton) {
+            closeButton.click();
+            await new Promise(resolve => setTimeout(resolve, 500)); // Ждем закрытия модального окна
+        }
+    }
+
+    async loadAllComments(modalElement) {
+        let loadedAll = false;
+        let attempts = 0;
+        const maxAttempts = 10; // Ограничиваем количество попыток загрузки
+
+        while (!loadedAll && attempts < maxAttempts) {
+            let foundButton = false;
+            // Ищем кнопки "View more comments" или "View previous comments"
+            const viewMoreButtons = modalElement.querySelectorAll(this.selectors.viewMoreCommentsButton.join(', '));
+            for (const button of viewMoreButtons) {
+                if (button.offsetParent !== null) { // Проверяем, что кнопка видима
+                    button.click();
+                    foundButton = true;
+                    await new Promise(resolve => setTimeout(resolve, 1000)); // Ждем загрузки комментариев
+                    break; // Нажимаем только одну кнопку за раз
+                }
+            }
+
+            // Ищем кнопки "View replies" для всех комментариев
+            const viewRepliesButtons = modalElement.querySelectorAll(this.selectors.viewRepliesButton.join(', '));
+            for (const button of viewRepliesButtons) {
+                if (button.offsetParent !== null) { // Проверяем, что кнопка видима
+                    button.click();
+                    foundButton = true;
+                    await new Promise(resolve => setTimeout(resolve, 1000)); // Ждем загрузки ответов
+                    // Не используем break, чтобы раскрыть все ответы сразу
+                }
+            }
+
+            if (!foundButton) {
+                loadedAll = true; // Если кнопок больше нет, значит, все загружено
+            }
+            attempts++;
+        }
+    }
+
+    async extractReplies(commentElement) {
+        const replies = [];
+        // Ищем кнопку "View replies" внутри элемента комментария
+        const viewRepliesButton = commentElement.querySelector(this.selectors.viewRepliesButton.join(', '));
+        if (viewRepliesButton) {
+            try {
+                viewRepliesButton.click();
+                await new Promise(resolve => setTimeout(resolve, 1000)); // Ждем загрузки ответов
+            } catch (error) {
+                console.warn("Could not click view replies button:", error);
+            }
+        }
+
+        const replyElements = commentElement.querySelectorAll(this.selectors.replies.join(', '));
+        for (const replyElement of replyElements) {
+            const reply = {};
+            reply.text = this.extractText(replyElement, this.selectors.commentText);
+
+            const authorLinkElement = replyElement.querySelector(this.selectors.commentAuthor.join(', '));
+            if (authorLinkElement) {
+                reply.author = {
+                    name: authorLinkElement.textContent.trim(),
+                    profileLink: authorLinkElement.href
+                };
+            }
+
+            const timeElement = replyElement.querySelector(this.selectors.postTime.join(', '));
+            if (timeElement) {
+                reply.timestamp = timeElement.getAttribute('title') || timeElement.textContent.trim();
+            }
+            replies.push(reply);
+        }
+        return replies;
     }
 }
 
 const scraper = new FacebookScraper();
 
-
-
+        
