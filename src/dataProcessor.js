@@ -1,436 +1,484 @@
-// Модуль для обработки и хранения данных Facebook Scraper
+// Модуль для обработки и хранения данных
 class DataProcessor {
     constructor() {
-        this.storageKey = 'facebook_scraper_data';
-        this.settingsKey = 'facebook_scraper_settings';
+        this.storageKey = 'facebookScrapedData';
+        this.settingsKey = 'facebookScraperSettings';
+        this.analyticsKey = 'facebookScraperAnalytics';
     }
 
-    // Обработка и структурирование данных согласно требуемому JSON формату
-    processScrapedData(rawData) {
-        const processedData = {
-            posts: [],
-            metadata: {
-                scraping_session: {
-                    timestamp: new Date().toISOString(),
-                    total_posts: 0,
-                    total_comments: 0,
-                    total_replies: 0
-                }
-            }
-        };
-
-        if (rawData && rawData.posts) {
-            processedData.posts = rawData.posts.map(post => this.processPost(post));
+    // Сохранение данных
+    async saveData(data) {
+        try {
+            const existingData = await this.loadData();
+            const mergedData = this.mergeData(existingData, data);
             
-            // Подсчитываем статистику
-            processedData.metadata.scraping_session.total_posts = processedData.posts.length;
-            processedData.metadata.scraping_session.total_comments = this.countTotalComments(processedData.posts);
-            processedData.metadata.scraping_session.total_replies = this.countTotalReplies(processedData.posts);
-        }
-
-        return processedData;
-    }
-
-    // Обработка отдельного поста
-    processPost(rawPost) {
-        const processedPost = {
-            post_id: rawPost.post_id || this.generateId('post'),
-            author: this.processAuthor(rawPost.author),
-            content: this.processContent(rawPost.content),
-            metadata: this.processPostMetadata(rawPost.metadata),
-            comments: []
-        };
-
-        // Обрабатываем комментарии
-        if (rawPost.comments && Array.isArray(rawPost.comments)) {
-            processedPost.comments = rawPost.comments.map(comment => this.processComment(comment));
-        }
-
-        return processedPost;
-    }
-
-    // Обработка автора
-    processAuthor(rawAuthor) {
-        if (!rawAuthor) {
-            return {
-                name: "Unknown User",
-                profile_url: "",
-                full_name: "Unknown User"
-            };
-        }
-
-        return {
-            name: rawAuthor.name || "Unknown User",
-            profile_url: rawAuthor.profile_url || rawAuthor.profileLink || "",
-            full_name: rawAuthor.full_name || rawAuthor.name || "Unknown User"
-        };
-    }
-
-    // Обработка контента
-    processContent(rawContent) {
-        if (!rawContent) {
-            return { text: "" };
-        }
-
-        return {
-            text: rawContent.text || rawContent || ""
-        };
-    }
-
-    // Обработка метаданных поста
-    processPostMetadata(rawMetadata) {
-        const metadata = {
-            created_at: "",
-            post_url: ""
-        };
-
-        if (rawMetadata) {
-            metadata.created_at = this.normalizeTimestamp(rawMetadata.created_at || rawMetadata.timestamp);
-            metadata.post_url = rawMetadata.post_url || rawMetadata.postLink || "";
-        }
-
-        return metadata;
-    }
-
-    // Обработка комментария
-    processComment(rawComment) {
-        const processedComment = {
-            comment_id: rawComment.comment_id || this.generateId('comment'),
-            content: this.processContent(rawComment.content),
-            author: this.processAuthor(rawComment.author),
-            metadata: this.processCommentMetadata(rawComment.metadata),
-            replies: []
-        };
-
-        // Обрабатываем ответы на комментарий
-        if (rawComment.replies && Array.isArray(rawComment.replies)) {
-            processedComment.replies = rawComment.replies.map(reply => this.processReply(reply));
-        }
-
-        return processedComment;
-    }
-
-    // Обработка ответа на комментарий
-    processReply(rawReply) {
-        const processedReply = {
-            reply_id: rawReply.reply_id || rawReply.comment_id || this.generateId('reply'),
-            content: this.processContent(rawReply.content),
-            author: this.processAuthor(rawReply.author),
-            metadata: this.processCommentMetadata(rawReply.metadata),
-            replies: [] // Поддержка вложенных ответов
-        };
-
-        // Обрабатываем вложенные ответы
-        if (rawReply.replies && Array.isArray(rawReply.replies)) {
-            processedReply.replies = rawReply.replies.map(nestedReply => this.processReply(nestedReply));
-        }
-
-        return processedReply;
-    }
-
-    // Обработка метаданных комментария
-    processCommentMetadata(rawMetadata) {
-        const metadata = {
-            created_at: ""
-        };
-
-        if (rawMetadata) {
-            metadata.created_at = this.normalizeTimestamp(rawMetadata.created_at || rawMetadata.timestamp);
-        }
-
-        return metadata;
-    }
-
-    // Нормализация временных меток
-    normalizeTimestamp(timestamp) {
-        if (!timestamp) return "";
-
-        try {
-            // Если это уже ISO строка
-            if (timestamp.includes('T') && timestamp.includes('Z')) {
-                return timestamp;
-            }
-
-            // Если это относительное время (например, "2h", "5 min ago")
-            if (this.isRelativeTime(timestamp)) {
-                return this.convertRelativeTime(timestamp);
-            }
-
-            // Пытаемся парсить как дату
-            const date = new Date(timestamp);
-            if (!isNaN(date.getTime())) {
-                return date.toISOString();
-            }
-
-            return timestamp; // Возвращаем как есть, если не можем обработать
-        } catch (error) {
-            console.warn('Error normalizing timestamp:', timestamp, error);
-            return timestamp;
-        }
-    }
-
-    // Проверка, является ли время относительным
-    isRelativeTime(timestamp) {
-        const relativePatterns = [
-            /\d+\s*(h|hour|hours|hr|hrs)/i,
-            /\d+\s*(m|min|mins|minute|minutes)/i,
-            /\d+\s*(s|sec|secs|second|seconds)/i,
-            /\d+\s*(d|day|days)/i,
-            /\d+\s*(w|week|weeks)/i,
-            /just now/i,
-            /ago/i
-        ];
-
-        return relativePatterns.some(pattern => pattern.test(timestamp));
-    }
-
-    // Конвертация относительного времени в абсолютное
-    convertRelativeTime(relativeTime) {
-        const now = new Date();
-        const timeString = relativeTime.toLowerCase();
-
-        // Извлекаем число
-        const numberMatch = timeString.match(/\d+/);
-        const number = numberMatch ? parseInt(numberMatch[0]) : 0;
-
-        if (timeString.includes('h') || timeString.includes('hour')) {
-            now.setHours(now.getHours() - number);
-        } else if (timeString.includes('m') || timeString.includes('min')) {
-            now.setMinutes(now.getMinutes() - number);
-        } else if (timeString.includes('s') || timeString.includes('sec')) {
-            now.setSeconds(now.getSeconds() - number);
-        } else if (timeString.includes('d') || timeString.includes('day')) {
-            now.setDate(now.getDate() - number);
-        } else if (timeString.includes('w') || timeString.includes('week')) {
-            now.setDate(now.getDate() - (number * 7));
-        }
-
-        return now.toISOString();
-    }
-
-    // Генерация уникальных ID
-    generateId(prefix = 'item') {
-        const timestamp = Date.now();
-        const random = Math.random().toString(36).substr(2, 9);
-        return `${prefix}_${timestamp}_${random}`;
-    }
-
-    // Подсчет общего количества комментариев
-    countTotalComments(posts) {
-        return posts.reduce((total, post) => {
-            return total + (post.comments ? post.comments.length : 0);
-        }, 0);
-    }
-
-    // Подсчет общего количества ответов
-    countTotalReplies(posts) {
-        let total = 0;
-        
-        posts.forEach(post => {
-            if (post.comments) {
-                post.comments.forEach(comment => {
-                    total += this.countRepliesRecursive(comment);
-                });
-            }
-        });
-        
-        return total;
-    }
-
-    // Рекурсивный подсчет ответов
-    countRepliesRecursive(comment) {
-        let count = comment.replies ? comment.replies.length : 0;
-        
-        if (comment.replies) {
-            comment.replies.forEach(reply => {
-                count += this.countRepliesRecursive(reply);
-            });
-        }
-        
-        return count;
-    }
-
-    // Экспорт данных в JSON
-    exportToJSON(data) {
-        const processedData = this.processScrapedData(data);
-        const jsonString = JSON.stringify(processedData, null, 2);
-        
-        // Создаем blob и ссылку для скачивания
-        const blob = new Blob([jsonString], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        
-        const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
-        const filename = `facebook_data_${timestamp}.json`;
-        
-        // Создаем временную ссылку для скачивания
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = filename;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-        
-        return filename;
-    }
-
-    // Экспорт данных в CSV
-    exportToCSV(data) {
-        const processedData = this.processScrapedData(data);
-        const csvData = this.convertToCSV(processedData);
-        
-        const blob = new Blob([csvData], { type: 'text/csv' });
-        const url = URL.createObjectURL(blob);
-        
-        const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
-        const filename = `facebook_data_${timestamp}.csv`;
-        
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = filename;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-        
-        return filename;
-    }
-
-    // Конвертация в CSV формат
-    convertToCSV(data) {
-        const headers = [
-            'Post ID',
-            'Post Author',
-            'Post Content',
-            'Post Date',
-            'Post URL',
-            'Comment ID',
-            'Comment Author',
-            'Comment Content',
-            'Comment Date',
-            'Reply ID',
-            'Reply Author',
-            'Reply Content',
-            'Reply Date'
-        ];
-        
-        let csvContent = headers.join(',') + '\n';
-        
-        data.posts.forEach(post => {
-            if (post.comments && post.comments.length > 0) {
-                post.comments.forEach(comment => {
-                    if (comment.replies && comment.replies.length > 0) {
-                        comment.replies.forEach(reply => {
-                            csvContent += this.formatCSVRow([
-                                post.post_id,
-                                post.author.name,
-                                this.escapeCSV(post.content.text),
-                                post.metadata.created_at,
-                                post.metadata.post_url,
-                                comment.comment_id,
-                                comment.author.name,
-                                this.escapeCSV(comment.content.text),
-                                comment.metadata.created_at,
-                                reply.reply_id,
-                                reply.author.name,
-                                this.escapeCSV(reply.content.text),
-                                reply.metadata.created_at
-                            ]) + '\n';
-                        });
-                    } else {
-                        csvContent += this.formatCSVRow([
-                            post.post_id,
-                            post.author.name,
-                            this.escapeCSV(post.content.text),
-                            post.metadata.created_at,
-                            post.metadata.post_url,
-                            comment.comment_id,
-                            comment.author.name,
-                            this.escapeCSV(comment.content.text),
-                            comment.metadata.created_at,
-                            '', '', '', ''
-                        ]) + '\n';
-                    }
-                });
-            } else {
-                csvContent += this.formatCSVRow([
-                    post.post_id,
-                    post.author.name,
-                    this.escapeCSV(post.content.text),
-                    post.metadata.created_at,
-                    post.metadata.post_url,
-                    '', '', '', '', '', '', '', ''
-                ]) + '\n';
-            }
-        });
-        
-        return csvContent;
-    }
-
-    // Экранирование CSV значений
-    escapeCSV(value) {
-        if (typeof value !== 'string') return '';
-        
-        // Заменяем переносы строк и экранируем кавычки
-        return '"' + value.replace(/"/g, '""').replace(/\n/g, ' ').replace(/\r/g, ' ') + '"';
-    }
-
-    // Форматирование строки CSV
-    formatCSVRow(values) {
-        return values.map(value => value || '').join(',');
-    }
-
-    // Сохранение данных в Chrome Storage
-    async saveToStorage(data) {
-        try {
-            const processedData = this.processScrapedData(data);
             await chrome.storage.local.set({
-                [this.storageKey]: processedData,
-                lastSaveTime: new Date().toISOString()
+                [this.storageKey]: mergedData,
+                lastUpdated: new Date().toISOString()
             });
-            return true;
+            
+            // Обновляем аналитику
+            await this.updateAnalytics(mergedData);
+            
+            return mergedData;
         } catch (error) {
-            console.error('Error saving to storage:', error);
-            return false;
+            console.error('Error saving data:', error);
+            throw error;
         }
     }
 
-    // Загрузка данных из Chrome Storage
-    async loadFromStorage() {
+    // Загрузка данных
+    async loadData() {
         try {
             const result = await chrome.storage.local.get([this.storageKey]);
-            return result[this.storageKey] || { posts: [] };
+            return result[this.storageKey] || {
+                posts: [],
+                comments: [],
+                profiles: []
+            };
         } catch (error) {
-            console.error('Error loading from storage:', error);
-            return { posts: [] };
+            console.error('Error loading data:', error);
+            return { posts: [], comments: [], profiles: [] };
         }
+    }
+
+    // Объединение новых данных с существующими
+    mergeData(existingData, newData) {
+        const merged = {
+            posts: [...existingData.posts],
+            comments: [...existingData.comments],
+            profiles: [...existingData.profiles]
+        };
+
+        // Добавляем новые посты
+        if (newData.posts) {
+            newData.posts.forEach(post => {
+                if (!merged.posts.find(p => p.id === post.id)) {
+                    merged.posts.push(post);
+                }
+            });
+        }
+
+        // Добавляем новые комментарии
+        if (newData.comments) {
+            newData.comments.forEach(comment => {
+                if (!merged.comments.find(c => c.id === comment.id)) {
+                    merged.comments.push(comment);
+                }
+            });
+        }
+
+        // Добавляем новые профили
+        if (newData.profiles) {
+            newData.profiles.forEach(profile => {
+                if (!merged.profiles.find(p => p.id === profile.id)) {
+                    merged.profiles.push(profile);
+                }
+            });
+        }
+
+        return merged;
     }
 
     // Очистка данных
-    async clearStorage() {
+    async clearData() {
         try {
-            await chrome.storage.local.remove([this.storageKey]);
-            return true;
+            await chrome.storage.local.set({
+                [this.storageKey]: { posts: [], comments: [], profiles: [] },
+                lastUpdated: new Date().toISOString()
+            });
+            
+            await this.clearAnalytics();
         } catch (error) {
-            console.error('Error clearing storage:', error);
-            return false;
+            console.error('Error clearing data:', error);
+            throw error;
         }
     }
 
-    // Получение статистики
-    getStatistics(data) {
-        const processedData = this.processScrapedData(data);
-        
+    // Экспорт данных в JSON
+    async exportToJSON() {
+        try {
+            const data = await this.loadData();
+            const analytics = await this.getAnalytics();
+            
+            const exportData = {
+                metadata: {
+                    exportDate: new Date().toISOString(),
+                    version: '1.0.0',
+                    totalPosts: data.posts.length,
+                    totalComments: data.comments.length,
+                    totalProfiles: data.profiles.length
+                },
+                analytics: analytics,
+                data: data
+            };
+
+            return JSON.stringify(exportData, null, 2);
+        } catch (error) {
+            console.error('Error exporting to JSON:', error);
+            throw error;
+        }
+    }
+
+    // Экспорт данных в CSV
+    async exportToCSV(dataType = 'posts') {
+        try {
+            const data = await this.loadData();
+            let csvContent = '';
+
+            switch (dataType) {
+                case 'posts':
+                    csvContent = this.postsToCSV(data.posts);
+                    break;
+                case 'comments':
+                    csvContent = this.commentsToCSV(data.comments);
+                    break;
+                case 'profiles':
+                    csvContent = this.profilesToCSV(data.profiles);
+                    break;
+                default:
+                    throw new Error('Invalid data type for CSV export');
+            }
+
+            return csvContent;
+        } catch (error) {
+            console.error('Error exporting to CSV:', error);
+            throw error;
+        }
+    }
+
+    // Конвертация постов в CSV
+    postsToCSV(posts) {
+        const headers = [
+            'ID', 'Text', 'Author Name', 'Author Profile', 'Timestamp', 
+            'Reactions', 'Comments Count', 'Shares Count', 'URL', 'Scraped At'
+        ];
+
+        const rows = posts.map(post => [
+            this.escapeCSV(post.id),
+            this.escapeCSV(post.text),
+            this.escapeCSV(post.author?.name || ''),
+            this.escapeCSV(post.author?.profileUrl || ''),
+            this.escapeCSV(post.timestamp),
+            post.reactions || 0,
+            post.commentsCount || 0,
+            post.sharesCount || 0,
+            this.escapeCSV(post.url || ''),
+            this.escapeCSV(post.scrapedAt)
+        ]);
+
+        return [headers, ...rows].map(row => row.join(',')).join('\n');
+    }
+
+    // Конвертация комментариев в CSV
+    commentsToCSV(comments) {
+        const headers = [
+            'ID', 'Post ID', 'Text', 'Author Name', 'Author Profile', 
+            'Timestamp', 'Scraped At'
+        ];
+
+        const rows = comments.map(comment => [
+            this.escapeCSV(comment.id),
+            this.escapeCSV(comment.postId),
+            this.escapeCSV(comment.text),
+            this.escapeCSV(comment.author?.name || ''),
+            this.escapeCSV(comment.author?.profileUrl || ''),
+            this.escapeCSV(comment.timestamp),
+            this.escapeCSV(comment.scrapedAt)
+        ]);
+
+        return [headers, ...rows].map(row => row.join(',')).join('\n');
+    }
+
+    // Конвертация профилей в CSV
+    profilesToCSV(profiles) {
+        const headers = [
+            'ID', 'Name', 'Profile URL', 'Scraped At'
+        ];
+
+        const rows = profiles.map(profile => [
+            this.escapeCSV(profile.id),
+            this.escapeCSV(profile.name),
+            this.escapeCSV(profile.profileUrl),
+            this.escapeCSV(profile.scrapedAt)
+        ]);
+
+        return [headers, ...rows].map(row => row.join(',')).join('\n');
+    }
+
+    // Экранирование данных для CSV
+    escapeCSV(value) {
+        if (value === null || value === undefined) return '';
+        const stringValue = String(value);
+        if (stringValue.includes(',') || stringValue.includes('"') || stringValue.includes('\n')) {
+            return `"${stringValue.replace(/"/g, '""')}"`;
+        }
+        return stringValue;
+    }
+
+    // Аналитика данных
+    async updateAnalytics(data) {
+        try {
+            const analytics = {
+                lastUpdated: new Date().toISOString(),
+                totalPosts: data.posts.length,
+                totalComments: data.comments.length,
+                totalProfiles: data.profiles.length,
+                
+                // Статистика по времени
+                timeStats: this.calculateTimeStats(data.posts),
+                
+                // Статистика по авторам
+                authorStats: this.calculateAuthorStats(data.posts),
+                
+                // Статистика по активности
+                activityStats: this.calculateActivityStats(data.posts),
+                
+                // Статистика по комментариям
+                commentStats: this.calculateCommentStats(data.comments, data.posts)
+            };
+
+            await chrome.storage.local.set({
+                [this.analyticsKey]: analytics
+            });
+
+            return analytics;
+        } catch (error) {
+            console.error('Error updating analytics:', error);
+            throw error;
+        }
+    }
+
+    // Получение аналитики
+    async getAnalytics() {
+        try {
+            const result = await chrome.storage.local.get([this.analyticsKey]);
+            return result[this.analyticsKey] || null;
+        } catch (error) {
+            console.error('Error getting analytics:', error);
+            return null;
+        }
+    }
+
+    // Очистка аналитики
+    async clearAnalytics() {
+        try {
+            await chrome.storage.local.remove([this.analyticsKey]);
+        } catch (error) {
+            console.error('Error clearing analytics:', error);
+        }
+    }
+
+    // Расчет статистики по времени
+    calculateTimeStats(posts) {
+        if (!posts.length) return {};
+
+        const dates = posts.map(post => new Date(post.scrapedAt)).filter(date => !isNaN(date));
+        if (!dates.length) return {};
+
+        const sortedDates = dates.sort((a, b) => a - b);
+        const firstDate = sortedDates[0];
+        const lastDate = sortedDates[sortedDates.length - 1];
+
+        // Группировка по дням
+        const dayGroups = {};
+        dates.forEach(date => {
+            const dayKey = date.toISOString().split('T')[0];
+            dayGroups[dayKey] = (dayGroups[dayKey] || 0) + 1;
+        });
+
         return {
-            totalPosts: processedData.posts.length,
-            totalComments: this.countTotalComments(processedData.posts),
-            totalReplies: this.countTotalReplies(processedData.posts),
-            lastUpdate: new Date().toISOString()
+            firstPost: firstDate.toISOString(),
+            lastPost: lastDate.toISOString(),
+            totalDays: Math.ceil((lastDate - firstDate) / (1000 * 60 * 60 * 24)) + 1,
+            postsPerDay: dayGroups,
+            averagePerDay: posts.length / Object.keys(dayGroups).length
         };
+    }
+
+    // Расчет статистики по авторам
+    calculateAuthorStats(posts) {
+        const authorCounts = {};
+        const authorReactions = {};
+
+        posts.forEach(post => {
+            const authorName = post.author?.name;
+            if (authorName) {
+                authorCounts[authorName] = (authorCounts[authorName] || 0) + 1;
+                authorReactions[authorName] = (authorReactions[authorName] || 0) + (post.reactions || 0);
+            }
+        });
+
+        // Топ авторов по количеству постов
+        const topAuthors = Object.entries(authorCounts)
+            .sort(([,a], [,b]) => b - a)
+            .slice(0, 10)
+            .map(([name, count]) => ({ name, posts: count, reactions: authorReactions[name] || 0 }));
+
+        return {
+            totalAuthors: Object.keys(authorCounts).length,
+            topAuthors: topAuthors,
+            averagePostsPerAuthor: posts.length / Object.keys(authorCounts).length
+        };
+    }
+
+    // Расчет статистики по активности
+    calculateActivityStats(posts) {
+        if (!posts.length) return {};
+
+        const totalReactions = posts.reduce((sum, post) => sum + (post.reactions || 0), 0);
+        const totalComments = posts.reduce((sum, post) => sum + (post.commentsCount || 0), 0);
+        const totalShares = posts.reduce((sum, post) => sum + (post.sharesCount || 0), 0);
+
+        const postsWithReactions = posts.filter(post => (post.reactions || 0) > 0);
+        const postsWithComments = posts.filter(post => (post.commentsCount || 0) > 0);
+        const postsWithShares = posts.filter(post => (post.sharesCount || 0) > 0);
+
+        return {
+            totalReactions: totalReactions,
+            totalComments: totalComments,
+            totalShares: totalShares,
+            averageReactions: totalReactions / posts.length,
+            averageComments: totalComments / posts.length,
+            averageShares: totalShares / posts.length,
+            engagementRate: {
+                reactions: (postsWithReactions.length / posts.length) * 100,
+                comments: (postsWithComments.length / posts.length) * 100,
+                shares: (postsWithShares.length / posts.length) * 100
+            }
+        };
+    }
+
+    // Расчет статистики по комментариям
+    calculateCommentStats(comments, posts) {
+        if (!comments.length) return {};
+
+        // Группировка комментариев по постам
+        const commentsByPost = {};
+        comments.forEach(comment => {
+            const postId = comment.postId;
+            if (!commentsByPost[postId]) {
+                commentsByPost[postId] = [];
+            }
+            commentsByPost[postId].push(comment);
+        });
+
+        // Статистика по авторам комментариев
+        const commentAuthors = {};
+        comments.forEach(comment => {
+            const authorName = comment.author?.name;
+            if (authorName) {
+                commentAuthors[authorName] = (commentAuthors[authorName] || 0) + 1;
+            }
+        });
+
+        const topCommentators = Object.entries(commentAuthors)
+            .sort(([,a], [,b]) => b - a)
+            .slice(0, 10)
+            .map(([name, count]) => ({ name, comments: count }));
+
+        return {
+            totalComments: comments.length,
+            postsWithComments: Object.keys(commentsByPost).length,
+            averageCommentsPerPost: comments.length / posts.length,
+            topCommentators: topCommentators,
+            uniqueCommentators: Object.keys(commentAuthors).length
+        };
+    }
+
+    // Поиск и фильтрация данных
+    async searchData(query, filters = {}) {
+        try {
+            const data = await this.loadData();
+            const results = {
+                posts: [],
+                comments: [],
+                profiles: []
+            };
+
+            // Поиск в постах
+            if (!filters.type || filters.type === 'posts') {
+                results.posts = data.posts.filter(post => 
+                    this.matchesQuery(post, query) && this.matchesFilters(post, filters)
+                );
+            }
+
+            // Поиск в комментариях
+            if (!filters.type || filters.type === 'comments') {
+                results.comments = data.comments.filter(comment => 
+                    this.matchesQuery(comment, query) && this.matchesFilters(comment, filters)
+                );
+            }
+
+            // Поиск в профилях
+            if (!filters.type || filters.type === 'profiles') {
+                results.profiles = data.profiles.filter(profile => 
+                    this.matchesQuery(profile, query) && this.matchesFilters(profile, filters)
+                );
+            }
+
+            return results;
+        } catch (error) {
+            console.error('Error searching data:', error);
+            throw error;
+        }
+    }
+
+    // Проверка соответствия запросу
+    matchesQuery(item, query) {
+        if (!query) return true;
+        
+        const searchText = query.toLowerCase();
+        const itemText = JSON.stringify(item).toLowerCase();
+        
+        return itemText.includes(searchText);
+    }
+
+    // Проверка соответствия фильтрам
+    matchesFilters(item, filters) {
+        // Фильтр по дате
+        if (filters.dateFrom || filters.dateTo) {
+            const itemDate = new Date(item.scrapedAt || item.timestamp);
+            if (filters.dateFrom && itemDate < new Date(filters.dateFrom)) return false;
+            if (filters.dateTo && itemDate > new Date(filters.dateTo)) return false;
+        }
+
+        // Фильтр по автору
+        if (filters.author) {
+            const authorName = item.author?.name?.toLowerCase() || '';
+            if (!authorName.includes(filters.author.toLowerCase())) return false;
+        }
+
+        // Фильтр по минимальным реакциям
+        if (filters.minReactions && (item.reactions || 0) < filters.minReactions) {
+            return false;
+        }
+
+        return true;
+    }
+
+    // Получение статистики хранилища
+    async getStorageStats() {
+        try {
+            const data = await this.loadData();
+            const dataSize = JSON.stringify(data).length;
+            
+            return {
+                totalItems: data.posts.length + data.comments.length + data.profiles.length,
+                posts: data.posts.length,
+                comments: data.comments.length,
+                profiles: data.profiles.length,
+                estimatedSize: `${(dataSize / 1024).toFixed(2)} KB`,
+                lastUpdated: (await chrome.storage.local.get(['lastUpdated'])).lastUpdated
+            };
+        } catch (error) {
+            console.error('Error getting storage stats:', error);
+            return null;
+        }
     }
 }
 
-// Экспорт для использования в других частях расширения
+// Экспорт для использования в других модулях
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = DataProcessor;
 } else if (typeof window !== 'undefined') {
